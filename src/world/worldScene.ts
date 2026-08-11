@@ -45,6 +45,8 @@ export interface SceneEntry {
    * false for anything alive — a see-through character reads as a bug.
    */
   fadeable: boolean
+  /** True for anything alive. Entities never fade and never hide the player. */
+  entity: boolean
 }
 
 /**
@@ -70,6 +72,7 @@ export function collectScene(
     faces: DrawFace[],
     radius: number,
     fadeable: boolean,
+    entity: boolean,
     shadow?: number,
     depthBias = 0,
   ): void => {
@@ -88,14 +91,17 @@ export function collectScene(
       depth: depthOf(offset) + depthBias,
       groundDepth: depthOf({ x: offset.x, y: 0, z: offset.z }),
       fadeable,
+      entity,
       ...(shadow !== undefined ? { shadow } : {}),
     })
   }
 
-  for (const p of props) consider(p.id, p.pos, p.faces, p.radius, !p.noFade, p.shadow, p.depthBias)
+  for (const p of props) {
+    consider(p.id, p.pos, p.faces, p.radius, !p.noFade, false, p.shadow, p.depthBias)
+  }
   for (const a of actors) {
     const centre = (a.centreY ?? HUMANOID_CENTRE) * Math.sin(PITCH)
-    consider(a.id, a.pos, a.faces, a.radius, false, a.shadow, centre)
+    consider(a.id, a.pos, a.faces, a.radius, false, true, a.shadow, centre)
   }
 
   return entries.sort((a, b) => a.depth - b.depth)

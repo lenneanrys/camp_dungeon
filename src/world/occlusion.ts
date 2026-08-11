@@ -30,6 +30,38 @@ export function pointInFace(px: number, py: number, points: Screen[]): boolean {
  * 2. Only props fade. Entities — the player, NPCs, straw dummies — are never
  *    made transparent; a translucent character reads as a bug, not as depth.
  */
+/** Does this entry's geometry cover the given screen point? */
+function covers(entry: SceneEntry, sx: number, sy: number): boolean {
+  for (const face of entry.faces) {
+    const points = face.points.map((p) => ({
+      sx: p.sx + entry.screen.sx,
+      sy: p.sy + entry.screen.sy,
+    }))
+    if (pointInFace(sx, sy, points)) return true
+  }
+  return false
+}
+
+/**
+ * Is the player hidden behind scenery that will NOT fade?
+ *
+ * Walls are deliberately solid — a curtain wall turning translucent reads as a
+ * rendering fault. But solid scenery still swallows the player when he walks up
+ * against it, so the caller draws his silhouette on top instead.
+ */
+export function hiddenBySolid(
+  entries: SceneEntry[],
+  player: { screen: Screen; depth: number },
+): boolean {
+  for (const entry of entries) {
+    if (entry.entity) continue // characters never hide the player
+    if (entry.fadeable) continue // this one fades, so he stays visible anyway
+    if (entry.groundDepth <= player.depth) continue // behind him
+    if (covers(entry, player.screen.sx, player.screen.sy)) return true
+  }
+  return false
+}
+
 export function occluders(
   entries: SceneEntry[],
   player: { screen: Screen; depth: number },
@@ -43,16 +75,7 @@ export function occluders(
     // and comparing that made walls fade as you walked up to them from outside.
     if (entry.groundDepth <= player.depth) continue
 
-    for (const face of entry.faces) {
-      const points = face.points.map((p) => ({
-        sx: p.sx + entry.screen.sx,
-        sy: p.sy + entry.screen.sy,
-      }))
-      if (pointInFace(player.screen.sx, player.screen.sy, points)) {
-        found.add(entry.id)
-        break
-      }
-    }
+    if (covers(entry, player.screen.sx, player.screen.sy)) found.add(entry.id)
   }
 
   return found

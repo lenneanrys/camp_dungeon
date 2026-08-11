@@ -37,6 +37,38 @@ export function drawFaces(
   ctx.restore()
 }
 
+/**
+ * The character as a flat shape, for drawing on top of solid scenery.
+ *
+ * Filled as one colour with no shading, so it reads as "you are here, behind
+ * this" rather than as a character standing in front of the wall.
+ */
+export function drawSilhouette(
+  ctx: CanvasRenderingContext2D,
+  faces: DrawFace[],
+  screenX: number,
+  screenY: number,
+  color: string,
+): void {
+  ctx.save()
+  ctx.translate(screenX, screenY)
+  ctx.fillStyle = color
+  ctx.strokeStyle = color
+  ctx.lineWidth = 2
+
+  for (const face of faces) {
+    ctx.beginPath()
+    ctx.moveTo(face.points[0]!.sx, face.points[0]!.sy)
+    for (let i = 1; i < face.points.length; i++) {
+      ctx.lineTo(face.points[i]!.sx, face.points[i]!.sy)
+    }
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
 /** Flat contact shadow, foreshortened by the same camera. */
 export function drawShadow(
   ctx: CanvasRenderingContext2D,

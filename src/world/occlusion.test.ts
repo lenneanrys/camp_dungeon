@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { occluders, pointInFace, OCCLUDED_ALPHA } from './occlusion'
+import { occluders, hiddenBySolid, pointInFace, OCCLUDED_ALPHA } from './occlusion'
 import type { SceneEntry } from './worldScene'
 
 /** A wall 100 wide and 160 tall, standing on the entry's own origin. */
@@ -30,6 +30,7 @@ const wall = (
   depth,
   groundDepth: depth,
   fadeable,
+  entity: false,
 })
 
 /** A wall whose sort depth is inflated by its height, as a real wall's is. */
@@ -75,6 +76,41 @@ describe('pointInFace', () => {
     ]
     expect(pointInFace(5, 5, triangle)).toBe(true)
     expect(pointInFace(0.5, 1, triangle)).toBe(false) // inside the box, outside the shape
+  })
+})
+
+describe('hiddenBySolid', () => {
+  const solid = (id: string, sx: number, sy: number, groundDepth: number): SceneEntry => ({
+    ...wall(id, sx, sy, groundDepth, false),
+    groundDepth,
+  })
+
+  // A curtain wall stays solid on purpose, so it swallows the player when he
+  // walks up against it. The caller draws his silhouette on top instead.
+  it('spots a solid wall covering the player', () => {
+    expect(hiddenBySolid([solid('wall', 0, 40, 20)], PLAYER)).toBe(true)
+  })
+
+  it('ignores a solid wall behind the player', () => {
+    expect(hiddenBySolid([solid('wall', 0, 40, -20)], PLAYER)).toBe(false)
+  })
+
+  it('ignores a solid wall off to the side', () => {
+    expect(hiddenBySolid([solid('wall', 400, 40, 20)], PLAYER)).toBe(false)
+  })
+
+  // Something that fades already leaves him visible; no silhouette needed.
+  it('ignores scenery that will fade anyway', () => {
+    expect(hiddenBySolid([wall('house', 0, 40, 20, true)], PLAYER)).toBe(false)
+  })
+
+  it('never counts another character as hiding the player', () => {
+    const npc: SceneEntry = { ...solid('npc', 0, 40, 20), entity: true }
+    expect(hiddenBySolid([npc], PLAYER)).toBe(false)
+  })
+
+  it('finds nothing in an empty world', () => {
+    expect(hiddenBySolid([], PLAYER)).toBe(false)
   })
 })
 

@@ -8,7 +8,7 @@ import { DOWN_EVENT, MOVE_EVENT, RELEASE_EVENTS } from './input/pointerEvents'
 import { jungleExplorer, buildParts } from './render3d/model'
 import { buildScene } from './render3d/scene'
 import { poseFor, rootOffset } from './render3d/pose'
-import { drawFaces, drawShadow } from './render3d/draw'
+import { drawFaces, drawShadow, drawSilhouette } from './render3d/draw'
 import { SCALE, PITCH, project, depthOf } from './render3d/camera'
 import { drawHud } from './render/hud'
 import {
@@ -23,7 +23,7 @@ import { bakeProp, bakeParts } from './world/bake'
 import type { AABB } from './world/prop'
 import { collectScene } from './world/worldScene'
 import type { Actor, SceneEntry } from './world/worldScene'
-import { occluders, OCCLUDED_ALPHA } from './world/occlusion'
+import { occluders, hiddenBySolid, OCCLUDED_ALPHA } from './world/occlusion'
 import { shellIds } from './world/interiors'
 import { buildNpcs, npcPose, npcOffset, updateNpc } from './world/npc'
 import { buildDummies, dummyPose } from './world/dummy'
@@ -35,6 +35,8 @@ const TILE = 16
 const TILE_W = TILE * SCALE
 const TILE_H = TILE_W * Math.sin(PITCH) // the ground uses the same camera
 const PLAYER_RADIUS = 5 / TILE
+/** Colour of the player's outline when he is behind solid scenery. */
+const SILHOUETTE = 'rgba(255, 233, 168, 0.92)'
 
 const canvas = document.getElementById('game') as HTMLCanvasElement
 const ctx = canvas.getContext('2d')!
@@ -278,12 +280,16 @@ function frame(now: number): void {
   //
   // Outdoors, anything genuinely covering the player fades.
   const inside = buildingAt(camera.x, camera.z)
-  const hidden = inside
-    ? new Set(shellIds(inside))
-    : occluders(entries, {
-        screen: project({ x: 0, y: 22, z: 0 }),
-        depth: depthOf({ x: 0, y: 0, z: 0 }),
-      })
+  const playerPoint = {
+    screen: project({ x: 0, y: 22, z: 0 }),
+    depth: depthOf({ x: 0, y: 0, z: 0 }),
+  }
+  const hidden = inside ? new Set(shellIds(inside)) : occluders(entries, playerPoint)
+
+  // Walls stay solid on purpose, so they swallow the player when he walks up
+  // against one. Rather than fade them, draw his outline over the top — he
+  // stays findable and the masonry stays masonry.
+  const behindSolid = hiddenBySolid(entries, playerPoint)
 
   const cx = cssWidth / 2
   const cy = cssHeight / 2
@@ -321,6 +327,13 @@ function frame(now: number): void {
     if (fade) ctx.globalAlpha = OCCLUDED_ALPHA
     drawFaces(ctx, entry.faces, x, y)
     if (fade) ctx.globalAlpha = 1
+  }
+
+  if (behindSolid) {
+    const self = entries.find((e) => e.id === 'player')
+    if (self) {
+      drawSilhouette(ctx, self.faces, cx + self.screen.sx, cy + self.screen.sy, SILHOUETTE)
+    }
   }
 
   drawDamageNumbers(camera)
